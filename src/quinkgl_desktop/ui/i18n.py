@@ -239,7 +239,7 @@ TELEMETRY_COPY = {
     "backend_title": "Dashboard backend",
     "backend_subtitle": "Where this swarm publishes runtime telemetry.",
     "dashboard_url_label": "Dashboard URL",
-    "dashboard_url_hint": "https:// optional",
+    "dashboard_url_hint": "Your QuinkGL telemetry dashboard endpoint",
     "dashboard_code_label": "Dashboard code",
     "dashboard_code_hint": "One-time enrollment code",
     "enroll": "Enroll Telemetry",
