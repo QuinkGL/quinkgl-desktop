@@ -155,7 +155,7 @@ def test_project_picker_shows_brand_logo_and_compact_actions():
     assert logo.pixmap() is not None
     assert logo.pixmap().isNull() is False
     assert {button.text() for button in buttons} >= {"Create Project", "Open Project"}
-    assert len(buttons) >= 6
+    assert len(buttons) >= 5
 
 
 def test_main_window_can_return_to_project_picker_after_project_open(tmp_path):

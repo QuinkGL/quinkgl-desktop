@@ -46,6 +46,9 @@ def test_embedded_preset_scripts_generate_data_when_missing():
 
 
 def test_cifar_preset_uses_fallback_tensors_when_download_fails(tmp_path, monkeypatch):
+    import pytest
+
+    pytest.importorskip("torch")
     service = ModelPresetService()
     script_path = service._preset_dir("cifar10") / "peer_script.py"
     spec = importlib.util.spec_from_file_location("cifar10_peer_script_test", script_path)
