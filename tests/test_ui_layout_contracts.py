@@ -285,7 +285,8 @@ def test_landing_empty_recent_projects_is_narrower_than_first_time(monkeypatch) 
 
     assert recent_card is not None
     assert first_time_card is not None
-    assert recent_card.width() <= first_time_card.width() + 10
+    assert recent_card.width() < first_time_card.width()
+    assert first_time_card.width() >= 540
 
 
 def test_landing_long_recent_paths_do_not_collapse_first_time(monkeypatch) -> None:
@@ -309,7 +310,7 @@ def test_landing_long_recent_paths_do_not_collapse_first_time(monkeypatch) -> No
     first_time_card = page.findChild(QFrame, "FirstTimeCard")
 
     assert first_time_card is not None
-    assert first_time_card.width() >= 400
+    assert first_time_card.width() >= 540
 
 
 def test_logs_page_starts_without_demo_seed():
