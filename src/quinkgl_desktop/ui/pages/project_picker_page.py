@@ -126,7 +126,7 @@ class ProjectPickerPage(QWidget):
     def _recent_projects(self) -> QFrame:
         frame, layout = card(padded=False)
         frame.setObjectName("RecentProjectsCard")
-        frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        frame.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         self.recent_frame = frame
         header = QHBoxLayout()
         header.setContentsMargins(20, 14, 20, 12)
@@ -143,6 +143,7 @@ class ProjectPickerPage(QWidget):
         search.setMaximumWidth(276)
         search.setFixedHeight(34)
         search.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.recent_search = search
         header.addWidget(search)
         layout.addLayout(header)
 
@@ -186,10 +187,12 @@ class ProjectPickerPage(QWidget):
             self.empty_recent_label = muted_label("Open a project to add it here.")
             self.empty_recent_label.setStyleSheet(f"font-size: 13px; color: {COLORS['text_muted']}; padding: 8px 20px 18px 20px;")
             self.recent_rows_layout.addWidget(self.empty_recent_label)
+            self.recent_search.hide()
             self._sync_recent_card_height()
             return
 
         self.empty_recent_label = None
+        self.recent_search.show()
         for project in self.recent_projects:
             row = QFrame()
             row.setObjectName("ProjectRow")
