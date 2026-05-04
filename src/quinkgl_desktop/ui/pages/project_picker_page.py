@@ -188,11 +188,13 @@ class ProjectPickerPage(QWidget):
             self.empty_recent_label.setStyleSheet(f"font-size: 13px; color: {COLORS['text_muted']}; padding: 8px 20px 18px 20px;")
             self.recent_rows_layout.addWidget(self.empty_recent_label)
             self.recent_search.hide()
+            self.recent_frame.setMaximumWidth(380)
             self._sync_recent_card_height()
             return
 
         self.empty_recent_label = None
         self.recent_search.show()
+        self.recent_frame.setMaximumWidth(16777215)
         for project in self.recent_projects:
             row = QFrame()
             row.setObjectName("ProjectRow")
