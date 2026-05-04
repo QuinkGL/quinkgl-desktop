@@ -40,6 +40,7 @@ from quinkgl_desktop.ui.pages.run_peer_page import RunPeerPage
 from quinkgl_desktop.ui.pages.settings_page import SettingsPage
 from quinkgl_desktop.ui.pages.telemetry_page import TelemetryPage
 from quinkgl_desktop.ui.pages.wizard_page import WizardPage
+from quinkgl_desktop.ui.search import SearchPopup
 from quinkgl_desktop.ui.state import AppState
 from quinkgl_desktop.ui.tokens import COLORS, PEER_STATE_BADGES, PEER_STATE_COLORS, PeerState, TOKENS
 
@@ -142,6 +143,18 @@ class SidebarNavItem(QFrame):
         for widget in (self, self.title_label, self.meta_label, self.icon_label):
             widget.style().unpolish(widget)
             widget.style().polish(widget)
+
+
+class ResponsiveStackedWidget(QStackedWidget):
+    def sizeHint(self) -> QSize:
+        current = self.currentWidget()
+        height = current.sizeHint().height() if current else super().sizeHint().height()
+        return QSize(0, height)
+
+    def minimumSizeHint(self) -> QSize:
+        current = self.currentWidget()
+        height = current.minimumSizeHint().height() if current else super().minimumSizeHint().height()
+        return QSize(0, height)
 
 
 class MainWindow(QMainWindow):
@@ -384,11 +397,16 @@ class MainWindow(QMainWindow):
                 min-height: 0px;
             }}
         """)
-        self.search_text.returnPressed.connect(self._on_search)
+        self.search_text.textChanged.connect(self._on_search_text_changed)
+        self.search_text.returnPressed.connect(self._on_search_return)
+        self.search_text.installEventFilter(self)
         sc_layout.addWidget(search_icon)
         sc_layout.addWidget(self.search_text, 1)
         topbar_layout.addWidget(search_container)
         topbar_layout.addStretch(1)
+
+        self.search_popup = SearchPopup(root)
+        self.search_popup.result_selected.connect(self._on_search_result_selected)
 
         # Peer status badge
         self.peer_chip = QFrame()
@@ -431,7 +449,7 @@ class MainWindow(QMainWindow):
         topbar_layout.addWidget(self.change_project_button)
         content_layout.addWidget(topbar)
 
-        self.stack = QStackedWidget()
+        self.stack = ResponsiveStackedWidget()
         self.stack.setMinimumWidth(0)
         self.stack.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Ignored)
         self.project_picker = ProjectPickerPage(self.app_state.app_version)
@@ -469,6 +487,7 @@ class MainWindow(QMainWindow):
         body_layout.addWidget(content, 1)
         outer.addWidget(body, 1)
         self.setCentralWidget(root)
+        root.installEventFilter(self)
         self.stack.setCurrentWidget(self.project_picker)
         self._refresh_chrome()
 
@@ -489,14 +508,67 @@ class MainWindow(QMainWindow):
         self.manifest.log_requested.connect(self.logs.append_log)
         self.telemetry.log_requested.connect(self.logs.append_log)
         self.run_peer.log_requested.connect(self.logs.append_log)
+        self.manifest.activity_recorded.connect(self._record_activity)
+        self.telemetry.activity_recorded.connect(self._record_activity)
+        self.run_peer.activity_recorded.connect(self._record_activity)
         self.process_manager.status_changed.connect(self._peer_status_changed)
         self.settings.binary_changed.connect(self._set_binary)
         self.settings.cli_changed.connect(self._set_cli_config)
 
-    def _on_search(self) -> None:
+    def _on_search_text_changed(self, text: str) -> None:
+        if text.strip():
+            container = self.search_text.parent()
+            container_pos = container.mapTo(self.centralWidget(), container.rect().bottomLeft())
+            popup_x = container_pos.x() - 8
+            popup_y = container_pos.y() + 6
+            self.search_popup.filter(text)
+            self.search_popup.move(popup_x, popup_y)
+            self.search_popup.show()
+            self.search_popup.raise_()
+        else:
+            self.search_popup.hide()
+
+    def _on_search_return(self) -> None:
         query = self.search_text.text().strip()
-        if query:
-            self.notify(f"Searched: {query}")
+        if query and self.search_popup.isVisible():
+            self.search_popup.select_current()
+
+    def _on_search_result_selected(self, action: str, action_type: str) -> None:
+        self.search_text.clear()
+        if action_type == "page":
+            self.set_page(action)
+        elif action_type == "settings_section":
+            self.set_page("settings")
+        elif action_type == "project":
+            self.open_project(action)
+
+    def _record_activity(self, kind: str, label: str, meta: str) -> None:
+        self.app_state.add_activity(kind, label, meta)
+        if self.app_state.page == "overview":
+            self._refresh_overview()
+
+    def eventFilter(self, obj, event) -> bool:
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.MouseButtonPress and self.search_popup.isVisible():
+            pos = event.globalPosition().toPoint()
+            container = self.search_text.parent()
+            in_container = container.rect().contains(container.mapFromGlobal(pos))
+            in_popup = self.search_popup.rect().contains(self.search_popup.mapFromGlobal(pos))
+            if not in_container and not in_popup:
+                self.search_popup.hide()
+        if obj is self.search_text and event.type() == QEvent.KeyPress:
+            key = event.key()
+            if key == Qt.Key_Down:
+                self.search_popup.select_next()
+                return True
+            elif key == Qt.Key_Up:
+                self.search_popup.select_previous()
+                return True
+            elif key == Qt.Key_Escape:
+                if self.search_popup.isVisible():
+                    self.search_popup.hide()
+                    return True
+        return super().eventFilter(obj, event)
 
     def notify(self, msg: str, duration_ms: int = 2000) -> None:
         """Show a toast notification in the bottom-right corner."""
@@ -555,6 +627,8 @@ class MainWindow(QMainWindow):
                 return
             self.app_state.set_page(page_key)
             self.stack.setCurrentIndex(self.page_index_by_key[page_key])
+            if page_key != "home" and self.config:
+                self._record_activity("navigation", f"Navigated to {spec.label}", spec.hint)
             # Project picker should never scroll; other pages may need it
             from PySide6.QtCore import Qt
             self.page_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff if page_key == "home" else Qt.ScrollBarAsNeeded)
@@ -587,6 +661,7 @@ class MainWindow(QMainWindow):
         self.project_picker.remember_project(self.config)
         self._push_config()
         self.set_page("overview")
+        self._record_activity("project", f"Opened project", workspace_path.name)
 
     def create_project(self, workspace: str, init_config) -> None:
         workspace_path = Path(workspace).expanduser().resolve()
@@ -647,7 +722,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_overview(self) -> None:
         artifacts = ProjectArtifacts.from_config(self.config) if self.config else None
-        self.overview.refresh(self.config, artifacts, self.peer_status)
+        self.overview.refresh(self.config, artifacts, self.peer_status, self.app_state.activity)
         if artifacts:
             ready_count = sum([artifacts.manifest_ready, artifacts.creator_key_ready, artifacts.telemetry_ready])
             self.app_state.readiness = {

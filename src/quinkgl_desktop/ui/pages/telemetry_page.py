@@ -16,6 +16,7 @@ from quinkgl_desktop.ui.tokens import COLORS, DEFAULTS
 class TelemetryPage(QWidget):
     config_changed = Signal(object)
     log_requested = Signal(str)
+    activity_recorded = Signal(str, str, str)
 
     def __init__(self, telemetry_service: TelemetryService) -> None:
         super().__init__()
@@ -41,6 +42,7 @@ class TelemetryPage(QWidget):
         backend, backend_layout = card()
         backend_layout.addWidget(card_header(TELEMETRY_COPY["backend_title"], TELEMETRY_COPY["backend_subtitle"]))
         self.dashboard_url = QLineEdit(DEFAULTS["dashboard_url"])
+        self.dashboard_url.setReadOnly(True)
         self.dashboard_code = QLineEdit("")
         backend_layout.addWidget(field(TELEMETRY_COPY["dashboard_url_label"], self.dashboard_url, TELEMETRY_COPY["dashboard_url_hint"]))
         backend_layout.addWidget(field(TELEMETRY_COPY["dashboard_code_label"], self.dashboard_code, TELEMETRY_COPY["dashboard_code_hint"]))
@@ -119,7 +121,8 @@ class TelemetryPage(QWidget):
 
     def set_config(self, config: ProjectConfig) -> None:
         self.config = config
-        self.dashboard_url.setText(config.dashboard_url)
+        config.dashboard_url = DEFAULTS["dashboard_url"]
+        self.dashboard_url.setText(DEFAULTS["dashboard_url"])
         self._render_status()
 
     def _render_status(self) -> None:
@@ -152,14 +155,14 @@ class TelemetryPage(QWidget):
 
     def _sync_config_soft(self) -> None:
         if self.config:
-            self.config.dashboard_url = self.dashboard_url.text()
+            self.config.dashboard_url = DEFAULTS["dashboard_url"]
             self.config_changed.emit(self.config)
         self._render_status()
 
     def _sync_config(self) -> ProjectConfig | None:
         if not self.config:
             return None
-        self.config.dashboard_url = self.dashboard_url.text()
+        self.config.dashboard_url = DEFAULTS["dashboard_url"]
         self.config_changed.emit(self.config)
         return self.config
 
@@ -176,6 +179,7 @@ class TelemetryPage(QWidget):
                 self.config_changed.emit(config)
             self.status_badge.setText(f"✓ {TELEMETRY_COPY['enrolled']}")
             self.status_badge.setProperty("badge", "green")
+            self.activity_recorded.emit("telemetry", "Telemetry enrolled", config.dashboard_url)
         else:
             self.status_badge.setText(TELEMETRY_COPY["pending"])
             self.status_badge.setProperty("badge", "red")

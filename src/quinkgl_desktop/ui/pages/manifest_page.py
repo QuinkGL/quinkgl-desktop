@@ -21,6 +21,7 @@ from quinkgl_desktop.ui.tokens import COLORS, DEFAULTS, TOKENS
 class ManifestPage(QWidget):
     config_changed = Signal(object)
     log_requested = Signal(str)
+    activity_recorded = Signal(str, str, str)
 
     def __init__(self, key_service: KeyService, manifest_service: ManifestService) -> None:
         super().__init__()
@@ -336,6 +337,7 @@ class ManifestPage(QWidget):
             config.creator_key_path = "creator.key"
             self.config_changed.emit(config)
             self._feedback("Creator key generated.")
+            self.activity_recorded.emit("creator_key", "Creator key generated", "creator.key")
         else:
             self._feedback("Creator key generation failed.")
         self.log_requested.emit(f"$ {' '.join(result.command)}\n{result.stdout}{result.stderr}")
@@ -361,6 +363,8 @@ class ManifestPage(QWidget):
         result = self.manifest_service.create_manifest(config)
         self._feedback("Manifest created." if result.ok else "Manifest creation failed.")
         self.log_requested.emit(f"$ {' '.join(result.command)}\n{result.stdout}{result.stderr}")
+        if result.ok:
+            self.activity_recorded.emit("manifest", "Manifest signed", config.manifest.output_path)
 
     def install_preset_files(self) -> None:
         config = self._sync_config()

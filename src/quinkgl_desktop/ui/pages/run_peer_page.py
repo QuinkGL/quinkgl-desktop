@@ -19,6 +19,7 @@ class RunPeerPage(QWidget):
     config_changed = Signal(object)
     navigate_requested = Signal(str)
     log_requested = Signal(str)
+    activity_recorded = Signal(str, str, str)
 
     def __init__(self, peer_run_service: PeerRunService, process_manager: PeerProcessManager) -> None:
         super().__init__()
@@ -166,7 +167,7 @@ class RunPeerPage(QWidget):
         self.stop_button.setProperty("danger", True)
         self.stop_button.setFixedHeight(40)
         self.stop_button.setIcon(lucide_icon("square", 14, COLORS["status_error"]))
-        self.stop_button.clicked.connect(self.process_manager.stop)
+        self.stop_button.clicked.connect(self._stop_peer)
         self.stop_button.setVisible(False)
         launch_layout.addWidget(self.start_button)
         launch_layout.addWidget(self.stop_button)
@@ -312,7 +313,14 @@ class RunPeerPage(QWidget):
         env = self.peer_run_service.build_environment()
         self.log_requested.emit(f"$ {' '.join(command)}")
         self.process_manager.start(command, Path(config.workspace_path), env=env)
+        self.activity_recorded.emit("peer_start", "Peer started", config.peer.node_id)
         self.navigate_requested.emit("logs")
+
+    def _stop_peer(self) -> None:
+        config = self._sync_config() if self.config else None
+        node_id = config.peer.node_id if config else "peer"
+        self.process_manager.stop()
+        self.activity_recorded.emit("peer_stop", "Peer stopped", node_id)
 
     def _set_status(self, status: str) -> None:
         running = status == "running"

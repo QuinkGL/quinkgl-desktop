@@ -153,7 +153,7 @@ DEFAULTS = {
     "aggregation": "FedAvg",
     "topology": "AffinityTopology",
     "output_path": "custom.qgl",
-    "dashboard_url": "",
+    "dashboard_url": "https://141-147-36-24.sslip.io/",
     "creator_key_path": "creator.key",
     "device": "cuda:0",
     "workers": "4",

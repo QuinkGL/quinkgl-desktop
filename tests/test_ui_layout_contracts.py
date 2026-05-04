@@ -4,17 +4,27 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import pytest
+from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QApplication, QFrame, QLabel, QLineEdit, QPushButton
 
 from quinkgl_desktop.ui.pages.base import card
 from quinkgl_desktop.ui.main_window import MainWindow
 from quinkgl_desktop.ui.pages.project_picker_page import ProjectPickerPage
 from quinkgl_desktop.ui.state import AppState
-from quinkgl_desktop.ui.tokens import LEVEL_COLORS, RADII, SPACING, TOKENS
+from quinkgl_desktop.ui.tokens import DEFAULTS, LEVEL_COLORS, RADII, SPACING, TOKENS
 
 
 def app() -> QApplication:
     return QApplication.instance() or QApplication([])
+
+
+@pytest.fixture(autouse=True)
+def isolate_recent_projects_store(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "quinkgl_desktop.core.recent_projects_store._config_dir",
+        lambda: tmp_path / "quinkgl-desktop",
+    )
 
 
 def test_locked_sidebar_items_use_icons_without_locked_text() -> None:
@@ -63,6 +73,28 @@ def test_design_tokens_match_reference_dark_gold_system() -> None:
     assert SPACING["page_x"] >= 40
 
 
+def test_default_dashboard_url_points_to_public_telemetry_endpoint() -> None:
+    assert DEFAULTS["dashboard_url"] == "https://141-147-36-24.sslip.io/"
+
+
+def test_telemetry_dashboard_url_is_fixed_to_public_endpoint() -> None:
+    from quinkgl_desktop.core.models import ProjectConfig
+
+    app()
+    window = MainWindow()
+    config = ProjectConfig(
+        project_name="project",
+        workspace_path="/tmp/project",
+        dashboard_url="https://custom.example.com",
+    )
+
+    window.telemetry.set_config(config)
+
+    assert window.telemetry.dashboard_url.text() == DEFAULTS["dashboard_url"]
+    assert window.telemetry.dashboard_url.isReadOnly()
+    assert config.dashboard_url == DEFAULTS["dashboard_url"]
+
+
 def test_shell_uses_reference_sidebar_and_topbar_scale() -> None:
     app()
     window = MainWindow()
@@ -72,6 +104,25 @@ def test_shell_uses_reference_sidebar_and_topbar_scale() -> None:
     topbars = [frame for frame in window.findChildren(type(window.sidebar_frame), "Topbar")]
     assert topbars
     assert all(56 <= frame.height() <= 60 for frame in topbars)
+
+
+def test_pages_do_not_expose_horizontal_scroll_with_sidebar_states(tmp_path) -> None:
+    app()
+    window = MainWindow()
+    window.resize(1180, 740)
+    window.show()
+    window.open_project(str(tmp_path / "project"))
+    QCoreApplication.processEvents()
+
+    page_keys = ["home", "overview", "wizard", "manifest", "telemetry", "run", "logs", "settings"]
+    for collapsed in (False, True):
+        if window.sidebar_collapsed != collapsed:
+            window.toggle_sidebar()
+        for page_key in page_keys:
+            window.set_page(page_key)
+            QCoreApplication.processEvents()
+
+            assert window.page_scroll.horizontalScrollBar().maximum() == 0, (collapsed, page_key)
 
 
 def test_page_margins_are_breathable_and_consistent() -> None:
@@ -204,7 +255,7 @@ def test_landing_recent_projects_are_real_project_history(tmp_path, monkeypatch)
     assert search is not None
     assert search.width() <= 280 or search.maximumWidth() <= 280
 
-    workspace = tmp_path / "selected-project"
+    workspace = tmp_path / "opened-workspace"
     window.open_project(str(workspace))
     window.show_project_picker()
 
@@ -214,8 +265,51 @@ def test_landing_recent_projects_are_real_project_history(tmp_path, monkeypatch)
     assert len(rows) == 1
     assert all(row.minimumHeight() <= 100 for row in rows)
     assert 120 <= recent_card.maximumHeight() <= 220
-    assert "selected-project" in labels
+    assert "opened-workspace" in labels
     assert all(text not in labels for text in ["12m", "2 days ago", "1 week ago", "3 weeks ago", "1 month ago"])
+
+
+def test_landing_empty_recent_projects_is_narrower_than_first_time(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "quinkgl_desktop.ui.pages.project_picker_page.load_recent_projects",
+        lambda: [],
+    )
+    app()
+    page = ProjectPickerPage()
+    page.resize(908, 620)
+    page.show()
+    QCoreApplication.processEvents()
+
+    recent_card = page.findChild(QFrame, "RecentProjectsCard")
+    first_time_card = page.findChild(QFrame, "FirstTimeCard")
+
+    assert recent_card is not None
+    assert first_time_card is not None
+    assert recent_card.width() < first_time_card.width()
+
+
+def test_landing_long_recent_paths_do_not_collapse_first_time(monkeypatch) -> None:
+    long_path = (
+        "/Users/alice/Documents/QuinkGL/workspaces/with/a/very/deep/nested/folder/"
+        "created/by/a/user/to/check/landing/recent/project/layout"
+    )
+    monkeypatch.setattr(
+        "quinkgl_desktop.ui.pages.project_picker_page.load_recent_projects",
+        lambda: [
+            {"name": "vision-training", "path": f"{long_path}/vision-training", "manifest": "manifest.qgl", "status": "draft"},
+            {"name": "audio-baseline", "path": f"{long_path}/audio-baseline", "manifest": "manifest.qgl", "status": "draft"},
+        ],
+    )
+    app()
+    page = ProjectPickerPage()
+    page.resize(1600, 900)
+    page.show()
+    QCoreApplication.processEvents()
+
+    first_time_card = page.findChild(QFrame, "FirstTimeCard")
+
+    assert first_time_card is not None
+    assert first_time_card.width() >= 400
 
 
 def test_logs_page_starts_without_demo_seed():
@@ -406,7 +500,7 @@ def test_overview_launch_button_aligns_with_readiness_header(tmp_path) -> None:
     app()
     window = MainWindow()
     window.resize(1600, 1000)
-    window.open_project(str(tmp_path / "readiness-project"))
+    window.open_project(str(tmp_path / "launch-workspace"))
     window.show()
     app().processEvents()
 

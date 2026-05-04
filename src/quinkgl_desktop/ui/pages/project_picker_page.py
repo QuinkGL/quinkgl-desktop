@@ -40,8 +40,12 @@ class ProjectPickerPage(QWidget):
         rail.addWidget(self._first_time())
         rail.addStretch(1)
         rail_widget = QWidget()
+        rail_widget.setObjectName("FirstTimeRail")
         rail_widget.setLayout(rail)
-        lower.addWidget(rail_widget, 1, Qt.AlignTop)
+        rail_widget.setMinimumWidth(480)
+        rail_widget.setMaximumWidth(520)
+        rail_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        lower.addWidget(rail_widget, 9, Qt.AlignTop)
         layout.addLayout(lower)
         layout.addStretch(1)
 
@@ -135,7 +139,10 @@ class ProjectPickerPage(QWidget):
         search = QLineEdit()
         search.setObjectName("RecentProjectFilter")
         search.setPlaceholderText(PROJECT_PICKER_COPY["recent_filter"])
-        search.setFixedSize(276, 34)
+        search.setMinimumWidth(180)
+        search.setMaximumWidth(276)
+        search.setFixedHeight(34)
+        search.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         header.addWidget(search)
         layout.addLayout(header)
 
@@ -199,6 +206,8 @@ class ProjectPickerPage(QWidget):
             meta = QLabel(f"{project['path']} \u00b7 {project['manifest']}")
             meta.setStyleSheet(f"font-size: 12px; color: {COLORS['text_muted']}; font-family: 'JetBrains Mono';")
             meta.setWordWrap(False)
+            meta.setToolTip(meta.text())
+            meta.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
             copy.addWidget(title)
             copy.addWidget(meta)
             row_layout.addLayout(copy, 1)
@@ -230,6 +239,7 @@ class ProjectPickerPage(QWidget):
 
     def _first_time(self) -> QFrame:
         frame, layout = card()
+        frame.setObjectName("FirstTimeCard")
         header = QHBoxLayout()
         header.setSpacing(8)
         header.addWidget(self._icon("zap", 14))

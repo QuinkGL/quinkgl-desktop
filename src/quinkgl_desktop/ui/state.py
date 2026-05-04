@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from quinkgl_desktop.ui.nav import PAGES
 from quinkgl_desktop.ui.tokens import PeerState
@@ -48,7 +49,6 @@ class AppState:
         if step not in self.wizard_completed:
             self.wizard_completed.append(step)
 
-    def add_activity(self, kind: str, label: str, meta: str, ago: str) -> None:
-        self.activity.insert(0, {"kind": kind, "label": label, "meta": meta, "ago": ago})
-        # Keep last 20
+    def add_activity(self, kind: str, label: str, meta: str = "") -> None:
+        self.activity.insert(0, {"kind": kind, "label": label, "meta": meta, "timestamp": datetime.now()})
         self.activity = self.activity[:20]

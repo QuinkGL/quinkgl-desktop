@@ -46,6 +46,33 @@ def test_load_returns_empty_on_corrupt_json(tmp_path, monkeypatch):
     assert load_recent_projects() == []
 
 
+def test_recent_projects_store_ignores_pytest_temp_artifacts(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "quinkgl_desktop.core.recent_projects_store._config_dir",
+        lambda: tmp_path / "quinkgl-desktop",
+    )
+
+    projects = [
+        {
+            "name": "real-workspace",
+            "path": "/Users/alice/QuinkGL/real-workspace",
+            "manifest": "real.qgl",
+            "status": "ready",
+        },
+        {
+            "name": "generated-test-workspace",
+            "path": "/private/var/folders/cache/T/pytest-of-alice/pytest-12/test_case0/generated-test-workspace",
+            "manifest": "test.qgl",
+            "status": "draft",
+        },
+    ]
+
+    save_recent_projects(projects)
+
+    loaded = load_recent_projects()
+    assert loaded == [projects[0]]
+
+
 def test_remove_recent_project_by_path(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "quinkgl_desktop.core.recent_projects_store._config_dir",

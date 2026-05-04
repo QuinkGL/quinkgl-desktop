@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
@@ -9,6 +11,30 @@ from quinkgl_desktop.ui.i18n import OVERVIEW_COPY, PAGES_COPY
 from quinkgl_desktop.ui.icons import lucide_icon
 from quinkgl_desktop.ui.pages.base import card, card_header, gold_button, gold_icon_box, muted_label, page_header, progress_bar
 from quinkgl_desktop.ui.tokens import TOKENS
+
+DELIM_MAP = {
+    "creator_key": "key-round",
+    "manifest": "file-cog",
+    "telemetry": "radio",
+    "peer_start": "play-circle",
+    "peer_stop": "square",
+    "navigation": "arrow-right",
+    "project": "folder-open",
+}
+
+
+def format_relative_time(timestamp: datetime) -> str:
+    seconds = (datetime.now() - timestamp).total_seconds()
+    if seconds < 60:
+        return "just now"
+    minutes = int(seconds / 60)
+    if minutes < 60:
+        return f"{minutes}m ago"
+    hours = int(minutes / 60)
+    if hours < 24:
+        return f"{hours}h ago"
+    days = int(hours / 24)
+    return f"{days}d ago"
 
 
 class OverviewPage(QWidget):
@@ -217,7 +243,7 @@ class OverviewPage(QWidget):
     def _launch_peer(self) -> None:
         self.navigate_requested.emit("run")
 
-    def refresh(self, config: ProjectConfig | None, artifacts: ProjectArtifacts | None, peer_status: str) -> None:
+    def refresh(self, config: ProjectConfig | None, artifacts: ProjectArtifacts | None, peer_status: str, activity: list[dict] | None = None) -> None:
         self.config = config
         self.artifacts = artifacts
         manifest_ready = bool(artifacts and artifacts.manifest_ready)
@@ -269,32 +295,51 @@ class OverviewPage(QWidget):
             if widget:
                 widget.setParent(None)
                 widget.deleteLater()
-        activity_data = [
-            (OVERVIEW_COPY["activity_empty"][0][0], artifacts.manifest_path.name if manifest_ready and artifacts and artifacts.manifest_path else OVERVIEW_COPY["activity_empty"][0][1], manifest_ready),
-            (OVERVIEW_COPY["activity_empty"][1][0], artifacts.telemetry_key_path.name if telemetry_ready and artifacts and artifacts.telemetry_key_path else OVERVIEW_COPY["activity_empty"][1][1], telemetry_ready),
-            (OVERVIEW_COPY["activity_empty"][2][0], "creator.key" if key_ready else OVERVIEW_COPY["activity_empty"][2][1], key_ready),
-            (OVERVIEW_COPY["activity_empty"][3][0], peer_status, peer_status == "running"),
-        ]
-        for title, detail, ok in activity_data:
-            row = QFrame()
-            row.setObjectName("ActivityItem")
-            row_layout = QHBoxLayout(row)
-            row_layout.setContentsMargins(0, 0, 0, 0)
-            row_layout.setSpacing(10)
-            dot = QFrame()
-            dot.setFixedSize(7, 7)
-            dot.setStyleSheet(f"background: {TOKENS['gold']}; border-radius: 3px;")
-            copy = QVBoxLayout()
-            copy.setSpacing(2)
-            title_label = QLabel(title)
-            title_label.setStyleSheet(f"color: {TOKENS['text'] if ok else TOKENS['textMute']}; font-size: 12.5px;")
-            detail_label = QLabel(detail)
-            detail_label.setStyleSheet(f"color: {TOKENS['textMute']}; font-size: 11px; font-family: 'JetBrains Mono', monospace;")
-            copy.addWidget(title_label)
-            copy.addWidget(detail_label)
-            row_layout.addWidget(dot, 0, Qt.AlignTop)
-            row_layout.addLayout(copy, 1)
-            time_label = QLabel("1h")
-            time_label.setStyleSheet(f"font-size: 11px; color: {TOKENS['textMute']};")
-            row_layout.addWidget(time_label)
+
+        activities = activity if activity else []
+
+        if not activities:
+            fallback = [
+                ("Manifest signed", "missing", "file-cog"),
+                ("Telemetry enrolled", "pending", "radio"),
+                ("Creator key", "missing", "key-round"),
+                ("Peer runtime", peer_status, "play-circle"),
+            ]
+            for title, detail, icon_name in fallback:
+                row = self._make_activity_row(icon_name, title, detail, "")
+                self.activity_lines.addWidget(row)
+            return
+
+        for entry in activities[:6]:
+            kind = entry.get("kind", "")
+            label = entry.get("label", "")
+            meta = entry.get("meta", "")
+            ts = entry.get("timestamp")
+            ago = format_relative_time(ts) if ts else ""
+            icon_name = DELIM_MAP.get(kind, "arrow-right")
+            row = self._make_activity_row(icon_name, label, meta, ago)
             self.activity_lines.addWidget(row)
+
+    def _make_activity_row(self, icon_name: str, title: str, detail: str, ago: str) -> QFrame:
+        row = QFrame()
+        row.setObjectName("ActivityItem")
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(10)
+        dot = QLabel()
+        dot.setFixedSize(16, 16)
+        dot.setPixmap(lucide_icon(icon_name, 16, TOKENS["goldSoft"]).pixmap(16, 16))
+        copy = QVBoxLayout()
+        copy.setSpacing(2)
+        title_label = QLabel(title)
+        title_label.setStyleSheet(f"color: {TOKENS['text']}; font-size: 12.5px;")
+        detail_label = QLabel(detail)
+        detail_label.setStyleSheet(f"color: {TOKENS['textMute']}; font-size: 11px; font-family: 'JetBrains Mono', monospace;")
+        copy.addWidget(title_label)
+        copy.addWidget(detail_label)
+        row_layout.addWidget(dot, 0, Qt.AlignTop)
+        row_layout.addLayout(copy, 1)
+        time_label = QLabel(ago)
+        time_label.setStyleSheet(f"font-size: 11px; color: {TOKENS['textMute']};")
+        row_layout.addWidget(time_label)
+        return row
