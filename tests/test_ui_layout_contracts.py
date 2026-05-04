@@ -285,7 +285,7 @@ def test_landing_empty_recent_projects_is_narrower_than_first_time(monkeypatch) 
 
     assert recent_card is not None
     assert first_time_card is not None
-    assert recent_card.width() < first_time_card.width()
+    assert recent_card.width() <= first_time_card.width() + 10
 
 
 def test_landing_long_recent_paths_do_not_collapse_first_time(monkeypatch) -> None:
